@@ -4,8 +4,10 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const VLLM_URL   = "http://127.0.0.1:8236";
-const MODEL      = "/home/alex/models/Qwen3-ASR-0.6B/";
+const ASR_URL    = "http://127.0.0.1:8236";
+const ASR_MODEL  = "/home/alex/models/Qwen3-ASR-0.6B/";
+const LLM_URL    = "http://127.0.0.1:8803";
+const LLM_MODEL  = "/home/alex/models/Qwen3.5-4B/";
 const SR         = 16000;
 const app = express();
 
@@ -40,10 +42,10 @@ async function transcribe(samples) {
   const wav  = float32ToWav(samples);
   const form = new FormData();
   form.append("file", new Blob([wav], { type: "audio/wav" }), "audio.wav");
-  form.append("model", MODEL);
+  form.append("model", ASR_MODEL);
   form.append("response_format", "json");
 
-  const resp = await fetch(`${VLLM_URL}/v1/audio/transcriptions`, {
+  const resp = await fetch(`${ASR_URL}/v1/audio/transcriptions`, {
     method: "POST",
     body: form,
   });
@@ -55,6 +57,25 @@ async function transcribe(samples) {
 
   const j = await resp.json();
   return j.text ?? "";
+}
+
+async function chat(text) {
+  const resp = await fetch(`${LLM_URL}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: LLM_MODEL,
+      messages: [{ role: "user", content: text }],
+      max_tokens: 1024,
+      chat_template_kwargs: { enable_thinking: false },
+    }),
+  });
+  if (!resp.ok) {
+    const msg = await resp.text();
+    throw new Error(`${resp.status} ${msg}`);
+  }
+  const j = await resp.json();
+  return j.choices[0].message.content ?? "";
 }
 
 // ── routes ─────────────────────────────────────────────────────────────────
@@ -78,10 +99,22 @@ app.post("/api/transcribe", express.raw({ type: "application/octet-stream", limi
   }
 });
 
+app.post("/api/chat", express.json(), async (req, res) => {
+  const text = req.body?.text?.trim();
+  if (!text) return res.status(400).json({ error: "text manquant" });
+  try {
+    const response = await chat(text);
+    res.json({ response });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── start ──────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT ?? 8000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Argus → http://localhost:${PORT}`);
-  console.log(`vLLM  → ${VLLM_URL}`);
+  console.log(`ASR   → ${ASR_URL}`);
+  console.log(`LLM   → ${LLM_URL}`);
 });

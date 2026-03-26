@@ -2,118 +2,63 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Mic Detector</title>
+  <title>Argus</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      min-height: 100vh;
-      background: #111;
-      font-family: monospace;
-      transition: background 0.1s;
-      padding: 2rem 1rem;
-      gap: 2rem;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh; background: #111; font-family: monospace;
+      transition: background 0.1s; padding: 2rem 1rem; gap: 2rem;
     }
+    #visu { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    #status { font-size: 6rem; font-weight: bold; letter-spacing: 0.05em; transition: color 0.1s; }
+    #label { font-size: 1.2rem; color: #555; }
+    #bar-container { width: 300px; height: 12px; background: #222; border-radius: 6px; overflow: hidden; }
+    #bar { height: 100%; width: 0%; background: #444; border-radius: 6px; transition: width 0.05s, background 0.1s; }
+    #threshold-label { font-size: 0.8rem; color: #444; }
 
-    /* ── visualiseur ── */
-    #visu {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1rem;
-    }
-    #status {
-      font-size: 6rem;
-      font-weight: bold;
-      letter-spacing: 0.05em;
-      transition: color 0.1s;
-    }
-    #label {
-      font-size: 1.2rem;
-      color: #555;
-    }
-    #bar-container {
-      width: 300px;
-      height: 12px;
-      background: #222;
-      border-radius: 6px;
-      overflow: hidden;
-    }
-    #bar {
-      height: 100%;
-      width: 0%;
-      background: #444;
-      border-radius: 6px;
-      transition: width 0.05s, background 0.1s;
-    }
-    #threshold-label {
-      font-size: 0.8rem;
-      color: #444;
-    }
-
-    /* ── section ASR ── */
-    #asr-section {
-      width: 100%;
-      max-width: 700px;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-    #ptt-hint {
-      font-size: 0.85rem;
-      color: #444;
-      user-select: none;
-    }
+    #conv-section { width: 100%; max-width: 700px; display: flex; flex-direction: column; gap: 0.75rem; }
+    #ptt-hint { font-size: 0.85rem; color: #444; user-select: none; }
     #asr-status {
-      font-size: 0.8rem;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid #333;
-      color: #555;
-      background: #1a1a1a;
-      user-select: none;
-      align-self: flex-start;
+      font-size: 0.8rem; padding: 4px 10px; border-radius: 999px;
+      border: 1px solid #333; color: #555; background: #1a1a1a;
+      user-select: none; align-self: flex-start;
     }
     #asr-status.rec  { color: #f44336; border-color: #f4433660; background: #1f0a0a; }
     #asr-status.wait { color: #ffb300; border-color: #ffb30060; background: #1f1700; }
     #asr-status.err  { color: #f44336; border-color: #f4433660; background: #1f0a0a; }
 
-    #transcript-box {
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 10px;
-      padding: 1rem;
-      min-height: 120px;
-      max-height: 400px;
-      overflow-y: auto;
-      font-size: 1rem;
-      line-height: 1.65;
-      color: #e0e0e0;
-      white-space: pre-wrap;
-      word-break: break-word;
+    #conversation {
+      display: flex; flex-direction: column; gap: 1rem;
+      min-height: 120px; max-height: 500px; overflow-y: auto;
+      padding: 1rem; background: #1a1a1a;
+      border: 1px solid #2a2a2a; border-radius: 10px;
     }
-    #transcript-box:empty::before {
-      content: "Maintiens µ et parle…";
-      color: #333;
+    #conversation:empty::before { content: "Maintiens µ et parle…"; color: #333; font-size: 0.9rem; }
+
+    .msg { display: flex; flex-direction: column; gap: 0.3rem; max-width: 85%; }
+    .msg.user      { align-self: flex-end;   align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+    .bubble {
+      padding: 0.6rem 0.9rem; border-radius: 12px;
+      font-size: 0.95rem; line-height: 1.55;
+      white-space: pre-wrap; word-break: break-word;
     }
+    .msg.user .bubble      { background: #1e3a2a; border: 1px solid #00e67625; color: #c8f0d8; }
+    .msg.assistant .bubble { background: #1a1a2e; border: 1px solid #5b8dee25; color: #c8d8f0; }
+    .msg-label { font-size: 0.7rem; color: #444; padding: 0 4px; }
+    .thinking { font-size: 0.85rem; color: #555; font-style: italic; padding: 4px 8px; animation: blink 1s step-start infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
     #clear-btn {
-      align-self: flex-end;
-      background: none;
-      border: none;
-      color: #333;
-      font-size: 0.75rem;
-      padding: 2px 6px;
-      cursor: pointer;
+      align-self: flex-end; background: none; border: none;
+      color: #333; font-size: 0.75rem; padding: 2px 6px;
+      cursor: pointer; font-family: monospace;
     }
     #clear-btn:hover { color: #666; }
   </style>
 </head>
 <body>
-
-  <!-- Visualiseur -->
   <div id="visu">
     <div id="status">...</div>
     <div id="label">demande accès micro...</div>
@@ -121,141 +66,135 @@
     <div id="threshold-label">seuil de détection : 10%</div>
   </div>
 
-  <!-- ASR push-to-talk -->
-  <div id="asr-section">
-    <span id="ptt-hint">maintiens <kbd>µ</kbd> pour enregistrer</span>
+  <div id="conv-section">
+    <span id="ptt-hint">maintiens <kbd>µ</kbd> pour parler</span>
     <span id="asr-status">en attente</span>
-    <div id="transcript-box"></div>
+    <div id="conversation"></div>
     <button id="clear-btn">effacer</button>
   </div>
 
   <script>
-    const THRESHOLD = 10;
-    const TARGET_SR = 16000;
+    const THRESHOLD = 10, TARGET_SR = 16000;
+    const statusEl  = document.getElementById('status');
+    const labelEl   = document.getElementById('label');
+    const barEl     = document.getElementById('bar');
+    const asrStatus = document.getElementById('asr-status');
+    const convEl    = document.getElementById('conversation');
+    const clearBtn  = document.getElementById('clear-btn');
 
-    const statusEl   = document.getElementById('status');
-    const labelEl    = document.getElementById('label');
-    const barEl      = document.getElementById('bar');
-    const asrStatus  = document.getElementById('asr-status');
-    const transcript = document.getElementById('transcript-box');
-    const clearBtn   = document.getElementById('clear-btn');
+    let audioCtx = null, recorder = null;
+    let recBuf = new Float32Array(0), recording = false;
 
-    let audioCtx   = null;
-    let micSource  = null;
-    let recorder   = null;
-    let recBuf     = new Float32Array(0);
-    let recording  = false;
+    function setStatus(text, cls) { asrStatus.textContent = text; asrStatus.className = cls || ''; }
 
     function resample(input, srcSr, dstSr) {
       if (srcSr === dstSr) return input;
-      const ratio  = dstSr / srcSr;
-      const outLen = Math.max(0, Math.round(input.length * ratio));
-      const out    = new Float32Array(outLen);
-      for (let i = 0; i < outLen; i++) {
-        const x  = i / ratio;
-        const x0 = Math.floor(x);
-        const x1 = Math.min(x0 + 1, input.length - 1);
-        out[i]   = input[x0] * (1 - (x - x0)) + input[x1] * (x - x0);
+      const ratio = dstSr / srcSr;
+      const out   = new Float32Array(Math.max(0, Math.round(input.length * ratio)));
+      for (let i = 0; i < out.length; i++) {
+        const x = i / ratio, x0 = Math.floor(x), x1 = Math.min(x0 + 1, input.length - 1);
+        out[i] = input[x0] * (1 - (x - x0)) + input[x1] * (x - x0);
       }
       return out;
     }
 
-    function setStatus(text, cls) {
-      asrStatus.textContent = text;
-      asrStatus.className   = cls || '';
+    function addMessage(role, text) {
+      const msg = document.createElement('div'); msg.className = `msg ${role}`;
+      const lbl = document.createElement('div'); lbl.className = 'msg-label';
+      lbl.textContent = role === 'user' ? 'vous' : 'argus';
+      const bubble = document.createElement('div'); bubble.className = 'bubble';
+      bubble.textContent = text;
+      msg.appendChild(lbl); msg.appendChild(bubble);
+      convEl.appendChild(msg); convEl.scrollTop = convEl.scrollHeight;
     }
 
-    // Demande le micro une seule fois, utilisé pour le visualiseur ET l'enregistrement
+    function addThinking() {
+      const el = document.createElement('div'); el.className = 'thinking';
+      el.textContent = 'argus réfléchit…';
+      convEl.appendChild(el); convEl.scrollTop = convEl.scrollHeight;
+      return el;
+    }
+
     navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       .then(stream => {
-        audioCtx  = new AudioContext();
-        micSource = audioCtx.createMediaStreamSource(stream);
+        audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
 
-        // Analyseur pour le visualiseur
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        micSource.connect(analyser);
+        const analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+        source.connect(analyser);
         const data = new Uint8Array(analyser.frequencyBinCount);
-
         function tick() {
           analyser.getByteFrequencyData(data);
-          const avg   = data.reduce((a, b) => a + b, 0) / data.length;
-          const pct   = Math.min(100, (avg / 255) * 100 * 3);
+          const pct = Math.min(100, (data.reduce((a,b)=>a+b,0)/data.length/255)*300);
           const sound = pct >= THRESHOLD;
-          barEl.style.width          = pct + '%';
-          statusEl.textContent       = sound ? 'OUI' : 'NON';
-          statusEl.style.color       = sound ? '#00e676' : '#555';
-          barEl.style.background     = sound ? '#00e676' : '#444';
+          barEl.style.width = pct + '%';
+          statusEl.textContent = sound ? 'OUI' : 'NON';
+          statusEl.style.color = sound ? '#00e676' : '#555';
+          barEl.style.background = sound ? '#00e676' : '#444';
           document.body.style.background = sound ? '#0a1f0f' : '#111';
-          labelEl.textContent        = sound ? 'son détecté' : 'silence';
+          labelEl.textContent = sound ? 'son détecté' : 'silence';
           requestAnimationFrame(tick);
         }
         tick();
 
-        // ScriptProcessor pour l'enregistrement PTT
         recorder = audioCtx.createScriptProcessor(4096, 1, 1);
-        micSource.connect(recorder);
-        recorder.connect(audioCtx.destination);
-
+        source.connect(recorder); recorder.connect(audioCtx.destination);
         recorder.onaudioprocess = (e) => {
           if (!recording) return;
-          const raw       = e.inputBuffer.getChannelData(0);
-          const resampled = resample(raw, audioCtx.sampleRate, TARGET_SR);
-          const merged    = new Float32Array(recBuf.length + resampled.length);
-          merged.set(recBuf);
-          merged.set(resampled, recBuf.length);
+          const resampled = resample(e.inputBuffer.getChannelData(0), audioCtx.sampleRate, TARGET_SR);
+          const merged = new Float32Array(recBuf.length + resampled.length);
+          merged.set(recBuf); merged.set(resampled, recBuf.length);
           recBuf = merged;
         };
-
         setStatus('en attente');
       })
       .catch(err => {
-        statusEl.textContent = '!';
-        statusEl.style.color = '#f44';
-        labelEl.textContent  = 'accès micro refusé : ' + err.message;
+        statusEl.textContent = '!'; statusEl.style.color = '#f44';
+        labelEl.textContent = 'accès micro refusé : ' + err.message;
         setStatus('micro indisponible', 'err');
       });
 
-    // ── Push-to-talk ───────────────────────────────────────────────────────────
-
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'µ' || recording || e.repeat || !recorder) return;
-      e.preventDefault();
-      recBuf    = new Float32Array(0);
-      recording = true;
-      setStatus('● enregistrement…', 'rec');
+      e.preventDefault(); recBuf = new Float32Array(0);
+      recording = true; setStatus('● enregistrement…', 'rec');
     });
 
     document.addEventListener('keyup', async (e) => {
       if (e.key !== 'µ' || !recording) return;
-      e.preventDefault();
-      recording = false;
+      e.preventDefault(); recording = false;
+      const samples = recBuf; recBuf = new Float32Array(0);
+      if (samples.length < TARGET_SR * 0.2) { setStatus('en attente'); return; }
 
-      const samples = recBuf;
-      recBuf = new Float32Array(0);
-
-      if (samples.length < TARGET_SR * 0.2) {
-        setStatus('en attente');
-        return;
-      }
-
-      setStatus('transcription…', 'wait');
       try {
-        const resp = await fetch('/api/transcribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: samples.buffer,
+        setStatus('transcription…', 'wait');
+        const asrResp = await fetch('/api/transcribe', {
+          method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: samples.buffer,
         });
-        const j = await resp.json();
-        if (j.error) throw new Error(j.error);
-        if (j.text) transcript.textContent += (transcript.textContent ? '\n' : '') + j.text;
+        const { text, error: asrErr } = await asrResp.json();
+        if (asrErr) throw new Error(asrErr);
+        if (!text?.trim()) { setStatus('en attente'); return; }
+
+        addMessage('user', text.trim());
+
+        setStatus('réponse…', 'wait');
+        const thinking = addThinking();
+        const llmResp = await fetch('/api/chat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text.trim() }),
+        });
+        thinking.remove();
+        const { response, error: llmErr } = await llmResp.json();
+        if (llmErr) throw new Error(llmErr);
+
+        addMessage('assistant', response);
         setStatus('en attente');
       } catch (err) {
         setStatus('erreur : ' + err.message, 'err');
       }
     });
 
-    clearBtn.onclick = () => { transcript.textContent = ''; };
+    clearBtn.onclick = () => { convEl.innerHTML = ''; };
   </script>
 </body>
 </html>
