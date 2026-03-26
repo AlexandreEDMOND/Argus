@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mic Detector</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      background: #111;
+      font-family: monospace;
+      transition: background 0.1s;
+      padding: 2rem 1rem;
+      gap: 2rem;
+    }
+
+    /* ── visualiseur ── */
+    #visu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    #status {
+      font-size: 6rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      transition: color 0.1s;
+    }
+    #label {
+      font-size: 1.2rem;
+      color: #555;
+    }
+    #bar-container {
+      width: 300px;
+      height: 12px;
+      background: #222;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    #bar {
+      height: 100%;
+      width: 0%;
+      background: #444;
+      border-radius: 6px;
+      transition: width 0.05s, background 0.1s;
+    }
+    #threshold-label {
+      font-size: 0.8rem;
+      color: #444;
+    }
+
+    /* ── section ASR ── */
+    #asr-section {
+      width: 100%;
+      max-width: 700px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    #ptt-hint {
+      font-size: 0.85rem;
+      color: #444;
+      user-select: none;
+    }
+    #asr-status {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #333;
+      color: #555;
+      background: #1a1a1a;
+      user-select: none;
+      align-self: flex-start;
+    }
+    #asr-status.rec  { color: #f44336; border-color: #f4433660; background: #1f0a0a; }
+    #asr-status.wait { color: #ffb300; border-color: #ffb30060; background: #1f1700; }
+    #asr-status.err  { color: #f44336; border-color: #f4433660; background: #1f0a0a; }
+
+    #transcript-box {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 1rem;
+      min-height: 120px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 1rem;
+      line-height: 1.65;
+      color: #e0e0e0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #transcript-box:empty::before {
+      content: "Maintiens µ et parle…";
+      color: #333;
+    }
+    #clear-btn {
+      align-self: flex-end;
+      background: none;
+      border: none;
+      color: #333;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    #clear-btn:hover { color: #666; }
+  </style>
+</head>
+<body>
+
+  <!-- Visualiseur -->
+  <div id="visu">
+    <div id="status">...</div>
+    <div id="label">demande accès micro...</div>
+    <div id="bar-container"><div id="bar"></div></div>
+    <div id="threshold-label">seuil de détection : 10%</div>
+  </div>
+
+  <!-- ASR push-to-talk -->
+  <div id="asr-section">
+    <span id="ptt-hint">maintiens <kbd>µ</kbd> pour enregistrer</span>
+    <span id="asr-status">en attente</span>
+    <div id="transcript-box"></div>
+    <button id="clear-btn">effacer</button>
+  </div>
+
+  <script>
+    const THRESHOLD = 10;
+    const TARGET_SR = 16000;
+
+    const statusEl   = document.getElementById('status');
+    const labelEl    = document.getElementById('label');
+    const barEl      = document.getElementById('bar');
+    const asrStatus  = document.getElementById('asr-status');
+    const transcript = document.getElementById('transcript-box');
+    const clearBtn   = document.getElementById('clear-btn');
+
+    let audioCtx   = null;
+    let micSource  = null;
+    let recorder   = null;
+    let recBuf     = new Float32Array(0);
+    let recording  = false;
+
+    function resample(input, srcSr, dstSr) {
+      if (srcSr === dstSr) return input;
+      const ratio  = dstSr / srcSr;
+      const outLen = Math.max(0, Math.round(input.length * ratio));
+      const out    = new Float32Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const x  = i / ratio;
+        const x0 = Math.floor(x);
+        const x1 = Math.min(x0 + 1, input.length - 1);
+        out[i]   = input[x0] * (1 - (x - x0)) + input[x1] * (x - x0);
+      }
+      return out;
+    }
+
+    function setStatus(text, cls) {
+      asrStatus.textContent = text;
+      asrStatus.className   = cls || '';
+    }
+
+    // Demande le micro une seule fois, utilisé pour le visualiseur ET l'enregistrement
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(stream => {
+        audioCtx  = new AudioContext();
+        micSource = audioCtx.createMediaStreamSource(stream);
+
+        // Analyseur pour le visualiseur
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        micSource.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+
+        function tick() {
+          analyser.getByteFrequencyData(data);
+          const avg   = data.reduce((a, b) => a + b, 0) / data.length;
+          const pct   = Math.min(100, (avg / 255) * 100 * 3);
+          const sound = pct >= THRESHOLD;
+          barEl.style.width          = pct + '%';
+          statusEl.textContent       = sound ? 'OUI' : 'NON';
+          statusEl.style.color       = sound ? '#00e676' : '#555';
+          barEl.style.background     = sound ? '#00e676' : '#444';
+          document.body.style.background = sound ? '#0a1f0f' : '#111';
+          labelEl.textContent        = sound ? 'son détecté' : 'silence';
+          requestAnimationFrame(tick);
+        }
+        tick();
+
+        // ScriptProcessor pour l'enregistrement PTT
+        recorder = audioCtx.createScriptProcessor(4096, 1, 1);
+        micSource.connect(recorder);
+        recorder.connect(audioCtx.destination);
+
+        recorder.onaudioprocess = (e) => {
+          if (!recording) return;
+          const raw       = e.inputBuffer.getChannelData(0);
+          const resampled = resample(raw, audioCtx.sampleRate, TARGET_SR);
+          const merged    = new Float32Array(recBuf.length + resampled.length);
+          merged.set(recBuf);
+          merged.set(resampled, recBuf.length);
+          recBuf = merged;
+        };
+
+        setStatus('en attente');
+      })
+      .catch(err => {
+        statusEl.textContent = '!';
+        statusEl.style.color = '#f44';
+        labelEl.textContent  = 'accès micro refusé : ' + err.message;
+        setStatus('micro indisponible', 'err');
+      });
+
+    // ── Push-to-talk ───────────────────────────────────────────────────────────
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'µ' || recording || e.repeat || !recorder) return;
+      e.preventDefault();
+      recBuf    = new Float32Array(0);
+      recording = true;
+      setStatus('● enregistrement…', 'rec');
+    });
+
+    document.addEventListener('keyup', async (e) => {
+      if (e.key !== 'µ' || !recording) return;
+      e.preventDefault();
+      recording = false;
+
+      const samples = recBuf;
+      recBuf = new Float32Array(0);
+
+      if (samples.length < TARGET_SR * 0.2) {
+        setStatus('en attente');
+        return;
+      }
+
+      setStatus('transcription…', 'wait');
+      try {
+        const resp = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: samples.buffer,
+        });
+        const j = await resp.json();
+        if (j.error) throw new Error(j.error);
+        if (j.text) transcript.textContent += (transcript.textContent ? '\n' : '') + j.text;
+        setStatus('en attente');
+      } catch (err) {
+        setStatus('erreur : ' + err.message, 'err');
+      }
+    });
+
+    clearBtn.onclick = () => { transcript.textContent = ''; };
+  </script>
+</body>
+</html>
