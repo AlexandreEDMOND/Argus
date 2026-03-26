@@ -54,6 +54,12 @@ This will:
 1. Start vLLM on `:8236` if not already running
 2. Start the web server on `:8000` via `npm run dev`
 
+The vLLM command used:
+
+```bash
+vllm serve ~/models/Qwen3-ASR-0.6B/ --port 8236 --gpu-memory-utilization 0.3 --max-model-len 16384
+```
+
 Then open **http://localhost:8000** and hold `µ` to transcribe.
 
 ## TODO
