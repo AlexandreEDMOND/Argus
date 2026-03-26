@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mic Detector</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #111;
+      font-family: monospace;
+      transition: background 0.1s;
+    }
+    #status {
+      font-size: 6rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      transition: color 0.1s;
+    }
+    #label {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      color: #555;
+    }
+    #bar-container {
+      margin-top: 2rem;
+      width: 300px;
+      height: 12px;
+      background: #222;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    #bar {
+      height: 100%;
+      width: 0%;
+      background: #444;
+      border-radius: 6px;
+      transition: width 0.05s, background 0.1s;
+    }
+    #threshold-label {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">...</div>
+  <div id="label">demande accès micro...</div>
+  <div id="bar-container"><div id="bar"></div></div>
+  <div id="threshold-label">seuil de détection : 10%</div>
+
+  <script>
+    const THRESHOLD = 10; // % du volume max pour considérer qu'il y a du son
+
+    const statusEl = document.getElementById('status');
+    const labelEl  = document.getElementById('label');
+    const barEl    = document.getElementById('bar');
+
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(stream => {
+        const ctx      = new AudioContext();
+        const source   = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+
+        function tick() {
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          const pct = Math.min(100, (avg / 255) * 100 * 3); // amplify a bit
+
+          barEl.style.width = pct + '%';
+
+          const sound = pct >= THRESHOLD;
+          statusEl.textContent  = sound ? 'OUI' : 'NON';
+          statusEl.style.color  = sound ? '#00e676' : '#555';
+          barEl.style.background = sound ? '#00e676' : '#444';
+          document.body.style.background = sound ? '#0a1f0f' : '#111';
+          labelEl.textContent   = sound ? 'son détecté' : 'silence';
+
+          requestAnimationFrame(tick);
+        }
+        tick();
+      })
+      .catch(err => {
+        statusEl.textContent = '!';
+        statusEl.style.color = '#f44';
+        labelEl.textContent  = 'accès micro refusé : ' + err.message;
+      });
+  </script>
+</body>
+</html>
