@@ -8,8 +8,12 @@ const ASR_URL    = "http://127.0.0.1:8236";
 const ASR_MODEL  = "/home/alex/models/Qwen3-ASR-0.6B/";
 const LLM_URL    = "http://127.0.0.1:8803";
 const LLM_MODEL  = "/home/alex/models/Qwen3.5-4B/";
+const TTS_URL    = "http://127.0.0.1:8804";
 const SR         = 16000;
 const app = express();
+
+// Regex : phrase terminée par . ! ? (pas suivie d'un autre . pour éviter de couper ...)
+const SENTENCE_RE = /[^.!?]*[.!?]+(?=[^.]|$)/g;
 
 // ── utils ──────────────────────────────────────────────────────────────────
 
@@ -81,6 +85,16 @@ app.post("/api/transcribe", express.raw({ type: "application/octet-stream", limi
   }
 });
 
+async function fetchTTS(text) {
+  const r = await fetch(`${TTS_URL}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!r.ok) throw new Error(`TTS ${r.status}`);
+  return Buffer.from(await r.arrayBuffer());
+}
+
 app.post("/api/chat", express.json(), async (req, res) => {
   const text = req.body?.text?.trim();
   if (!text) return res.status(400).json({ error: "text manquant" });
@@ -111,9 +125,66 @@ app.post("/api/chat", express.json(), async (req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  for await (const chunk of llmResp.body) {
-    res.write(chunk);
+  const sse = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  // TTS : les appels partent en parallèle mais les résultats arrivent dans l'ordre
+  let ttsChain = Promise.resolve();
+  function dispatchTTS(sentence) {
+    const promise = fetchTTS(sentence);
+    ttsChain = ttsChain.then(async () => {
+      try {
+        const wav = await promise;
+        sse("audio", { wav: wav.toString("base64") });
+      } catch (e) {
+        console.error("TTS error:", e.message);
+      }
+    });
   }
+
+  const decoder = new TextDecoder();
+  let sseBuffer  = "";
+  let textBuffer = "";  // accumule les tokens content pour détecter les phrases
+
+  for await (const chunk of llmResp.body) {
+    sseBuffer += decoder.decode(chunk, { stream: true });
+    const lines = sseBuffer.split("\n");
+    sseBuffer = lines.pop();
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (raw === "[DONE]") continue;
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch { continue; }
+
+      const delta = parsed.choices?.[0]?.delta;
+      if (!delta) continue;
+
+      if (delta.reasoning) sse("reasoning", { text: delta.reasoning });
+
+      if (delta.content) {
+        sse("token", { text: delta.content });
+        textBuffer += delta.content;
+
+        // Extrait les phrases complètes et dispatch TTS
+        SENTENCE_RE.lastIndex = 0;
+        let match, last = 0;
+        while ((match = SENTENCE_RE.exec(textBuffer)) !== null) {
+          const sentence = match[0].trim();
+          if (sentence.length > 2) dispatchTTS(sentence);
+          last = match.index + match[0].length;
+        }
+        textBuffer = textBuffer.slice(last);
+      }
+    }
+  }
+
+  // Envoie le reste du texte s'il ne se termine pas par une ponctuation
+  if (textBuffer.trim().length > 2) dispatchTTS(textBuffer.trim());
+
+  // Attend que tous les audios soient envoyés avant de clore
+  await ttsChain;
+  sse("done", {});
   res.end();
 });
 

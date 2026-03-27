@@ -7,6 +7,9 @@ uv venv .venv --python 3.12
 echo "==> Installation de vLLM..."
 uv pip install --python .venv/bin/python vllm
 
+echo "==> Installation des dépendances TTS..."
+uv pip install --python .venv/bin/python kokoro soundfile fastapi uvicorn
+
 echo "==> Installation des dépendances Node..."
 npm install
 

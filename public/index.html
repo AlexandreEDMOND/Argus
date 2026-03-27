@@ -10,7 +10,6 @@
       min-height: 100vh; background: #111; font-family: monospace;
       transition: background 0.1s; padding: 2rem 1rem; gap: 2rem;
     }
-
     #visu { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
     #status { font-size: 6rem; font-weight: bold; letter-spacing: 0.05em; transition: color 0.1s; }
     #label { font-size: 1.2rem; color: #555; }
@@ -20,7 +19,6 @@
 
     #conv-section { width: 100%; max-width: 740px; display: flex; flex-direction: column; gap: 0.75rem; }
     #ptt-hint { font-size: 0.85rem; color: #444; user-select: none; }
-
     #asr-status {
       font-size: 0.8rem; padding: 4px 10px; border-radius: 999px;
       border: 1px solid #333; color: #555; background: #1a1a1a;
@@ -33,8 +31,7 @@
     #conversation {
       display: flex; flex-direction: column; gap: 1rem;
       min-height: 120px; max-height: 560px; overflow-y: auto;
-      padding: 1rem; background: #1a1a1a;
-      border: 1px solid #2a2a2a; border-radius: 10px;
+      padding: 1rem; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
     }
     #conversation:empty::before { content: "Maintiens µ et parle…"; color: #333; font-size: 0.9rem; }
 
@@ -45,17 +42,12 @@
 
     .bubble {
       padding: 0.6rem 0.9rem; border-radius: 12px;
-      font-size: 0.95rem; line-height: 1.6;
-      white-space: pre-wrap; word-break: break-word;
+      font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
     }
     .msg.user .bubble      { background: #1e3a2a; border: 1px solid #00e67625; color: #c8f0d8; }
     .msg.assistant .bubble { background: #1a1a2e; border: 1px solid #5b8dee25; color: #c8d8f0; }
 
-    /* Bloc raisonnement */
-    details.reasoning {
-      border: 1px solid #2a2a2a; border-radius: 8px;
-      background: #161616; max-width: 100%;
-    }
+    details.reasoning { border: 1px solid #2a2a2a; border-radius: 8px; background: #161616; max-width: 100%; }
     details.reasoning summary {
       cursor: pointer; font-size: 0.75rem; color: #555;
       padding: 5px 10px; user-select: none; list-style: none;
@@ -63,15 +55,13 @@
     details.reasoning summary::before { content: "▶ "; font-size: 0.65rem; }
     details.reasoning[open] summary::before { content: "▼ "; }
     .reasoning-text {
-      padding: 8px 12px; font-size: 0.8rem; line-height: 1.55;
-      color: #444; white-space: pre-wrap; word-break: break-word;
-      max-height: 220px; overflow-y: auto;
+      padding: 8px 12px; font-size: 0.8rem; line-height: 1.55; color: #444;
+      white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;
     }
 
     #clear-btn {
       align-self: flex-end; background: none; border: none;
-      color: #333; font-size: 0.75rem; padding: 2px 6px;
-      cursor: pointer; font-family: monospace;
+      color: #333; font-size: 0.75rem; padding: 2px 6px; cursor: pointer; font-family: monospace;
     }
     #clear-btn:hover { color: #666; }
   </style>
@@ -83,7 +73,6 @@
     <div id="bar-container"><div id="bar"></div></div>
     <div id="threshold-label">seuil de détection : 10%</div>
   </div>
-
   <div id="conv-section">
     <span id="ptt-hint">maintiens <kbd>µ</kbd> pour parler</span>
     <span id="asr-status">en attente</span>
@@ -116,6 +105,29 @@
       return out;
     }
 
+    // ── Audio queue ────────────────────────────────────────────────────────────
+    const audioQueue = [];
+    let audioPlaying = false;
+
+    function playNext() {
+      if (audioQueue.length === 0) { audioPlaying = false; return; }
+      audioPlaying = true;
+      const buf = audioQueue.shift();
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.onended = playNext;
+      src.start();
+    }
+
+    async function enqueueAudio(b64) {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const audioBuf = await audioCtx.decodeAudioData(bytes.buffer);
+      audioQueue.push(audioBuf);
+      if (!audioPlaying) playNext();
+    }
+
+    // ── UI helpers ─────────────────────────────────────────────────────────────
     function addUserMessage(text) {
       const msg = document.createElement('div'); msg.className = 'msg user';
       const lbl = document.createElement('div'); lbl.className = 'msg-label'; lbl.textContent = 'vous';
@@ -132,17 +144,15 @@
       const summary = document.createElement('summary'); summary.textContent = 'raisonnement';
       const reasoningText = document.createElement('div'); reasoningText.className = 'reasoning-text';
       details.append(summary, reasoningText);
-      details.hidden = true; // masqué tant qu'il n'y a pas de raisonnement
+      details.hidden = true;
 
       const bubble = document.createElement('div'); bubble.className = 'bubble';
-
       msg.append(lbl, details, bubble);
       convEl.appendChild(msg); convEl.scrollTop = convEl.scrollHeight;
       return { details, reasoningText, bubble };
     }
 
     // ── Micro ──────────────────────────────────────────────────────────────────
-
     navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       .then(stream => {
         audioCtx = new AudioContext();
@@ -150,10 +160,9 @@
         const analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
         source.connect(analyser);
         const data = new Uint8Array(analyser.frequencyBinCount);
-
         function tick() {
           analyser.getByteFrequencyData(data);
-          const pct = Math.min(100, (data.reduce((a, b) => a + b, 0) / data.length / 255) * 300);
+          const pct = Math.min(100, (data.reduce((a,b)=>a+b,0)/data.length/255)*300);
           const sound = pct >= THRESHOLD;
           barEl.style.width = pct + '%';
           statusEl.textContent = sound ? 'OUI' : 'NON';
@@ -164,7 +173,6 @@
           requestAnimationFrame(tick);
         }
         tick();
-
         recorder = audioCtx.createScriptProcessor(4096, 1, 1);
         source.connect(recorder); recorder.connect(audioCtx.destination);
         recorder.onaudioprocess = (e) => {
@@ -183,7 +191,6 @@
       });
 
     // ── Push-to-talk ───────────────────────────────────────────────────────────
-
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'µ' || recording || e.repeat || !recorder) return;
       e.preventDefault(); recBuf = new Float32Array(0);
@@ -200,9 +207,7 @@
         // 1. Transcription
         setStatus('transcription…', 'wait');
         const asrResp = await fetch('/api/transcribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: samples.buffer,
+          method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: samples.buffer,
         });
         const { text, error: asrErr } = await asrResp.json();
         if (asrErr) throw new Error(asrErr);
@@ -210,50 +215,51 @@
 
         addUserMessage(text.trim());
 
-        // 2. Réponse LLM en streaming
+        // 2. LLM streaming + TTS
         setStatus('réponse…', 'wait');
         const { details, reasoningText, bubble } = createAssistantMessage();
 
         const llmResp = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: text.trim() }),
         });
         if (!llmResp.ok) throw new Error(await llmResp.text());
 
-        const reader  = llmResp.body.getReader();
+        const reader = llmResp.body.getReader();
         const decoder = new TextDecoder();
-        let buf = '';
+        let buf = '', eventType = 'message';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
 
-          // Découpe les lignes SSE
           const lines = buf.split('\n');
-          buf = lines.pop(); // garde la ligne incomplète
+          buf = lines.pop();
 
           for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const raw = line.slice(6).trim();
-            if (raw === '[DONE]') continue;
-            let chunk;
-            try { chunk = JSON.parse(raw); } catch { continue; }
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const raw = line.slice(6).trim();
+              if (!raw || raw === '[DONE]') { eventType = 'message'; continue; }
+              let d;
+              try { d = JSON.parse(raw); } catch { eventType = 'message'; continue; }
 
-            const delta = chunk.choices?.[0]?.delta;
-            if (!delta) continue;
-
-            if (delta.reasoning) {
-              details.hidden = false;
-              details.open   = true;
-              reasoningText.textContent += delta.reasoning;
-              reasoningText.scrollTop = reasoningText.scrollHeight;
+              if (eventType === 'reasoning' && d.text) {
+                details.hidden = false; details.open = true;
+                reasoningText.textContent += d.text;
+                reasoningText.scrollTop = reasoningText.scrollHeight;
+              } else if (eventType === 'token' && d.text) {
+                bubble.textContent += d.text;
+              } else if (eventType === 'audio' && d.wav) {
+                enqueueAudio(d.wav).catch(console.error);
+              }
+              convEl.scrollTop = convEl.scrollHeight;
+              if (line === '') eventType = 'message';
+            } else if (line === '') {
+              eventType = 'message';
             }
-            if (delta.content) {
-              bubble.textContent += delta.content;
-            }
-            convEl.scrollTop = convEl.scrollHeight;
           }
         }
 
@@ -263,7 +269,7 @@
       }
     });
 
-    clearBtn.onclick = () => { convEl.innerHTML = ''; };
+    clearBtn.onclick = () => { convEl.innerHTML = ''; audioQueue.length = 0; };
   </script>
 </body>
 </html>
