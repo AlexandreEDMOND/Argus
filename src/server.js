@@ -59,24 +59,6 @@ async function transcribe(samples) {
   return j.text ?? "";
 }
 
-async function chat(text) {
-  const resp = await fetch(`${LLM_URL}/v1/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: LLM_MODEL,
-      messages: [{ role: "user", content: text }],
-      max_tokens: 1024,
-      chat_template_kwargs: { enable_thinking: false },
-    }),
-  });
-  if (!resp.ok) {
-    const msg = await resp.text();
-    throw new Error(`${resp.status} ${msg}`);
-  }
-  const j = await resp.json();
-  return j.choices[0].message.content ?? "";
-}
 
 // ── routes ─────────────────────────────────────────────────────────────────
 
@@ -102,12 +84,36 @@ app.post("/api/transcribe", express.raw({ type: "application/octet-stream", limi
 app.post("/api/chat", express.json(), async (req, res) => {
   const text = req.body?.text?.trim();
   if (!text) return res.status(400).json({ error: "text manquant" });
+
+  let llmResp;
   try {
-    const response = await chat(text);
-    res.json({ response });
+    llmResp = await fetch(`${LLM_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: LLM_MODEL,
+        messages: [{ role: "user", content: text }],
+        max_tokens: 4096,
+        stream: true,
+      }),
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
+
+  if (!llmResp.ok) {
+    const msg = await llmResp.text();
+    return res.status(llmResp.status).json({ error: msg });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  for await (const chunk of llmResp.body) {
+    res.write(chunk);
+  }
+  res.end();
 });
 
 // ── start ──────────────────────────────────────────────────────────────────
