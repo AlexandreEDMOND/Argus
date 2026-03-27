@@ -95,6 +95,7 @@ app.post("/api/chat", express.json(), async (req, res) => {
         messages: [{ role: "user", content: text }],
         max_tokens: 4096,
         stream: true,
+        chat_template_kwargs: { enable_thinking: false },
       }),
     });
   } catch (err) {
