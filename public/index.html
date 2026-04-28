@@ -2,274 +2,1152 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Argus</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Argus Inference</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #11130f;
+      --surface: #171a15;
+      --surface-2: #1e231b;
+      --field: #0d100c;
+      --line: #343b2f;
+      --line-strong: #59624f;
+      --text: #eeeadd;
+      --muted: #aaa493;
+      --dim: #716d62;
+      --ok: #76d36f;
+      --warn: #dfb452;
+      --bad: #e06958;
+      --accent: #94b9d7;
+      --ink: #0a0c09;
+      --radius: 7px;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      display: flex; flex-direction: column; align-items: center;
-      min-height: 100vh; background: #111; font-family: monospace;
-      transition: background 0.1s; padding: 2rem 1rem; gap: 2rem;
-    }
-    #visu { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-    #status { font-size: 6rem; font-weight: bold; letter-spacing: 0.05em; transition: color 0.1s; }
-    #label { font-size: 1.2rem; color: #555; }
-    #bar-container { width: 300px; height: 12px; background: #222; border-radius: 6px; overflow: hidden; }
-    #bar { height: 100%; width: 0%; background: #444; border-radius: 6px; transition: width 0.05s, background 0.1s; }
-    #threshold-label { font-size: 0.8rem; color: #444; }
-
-    #conv-section { width: 100%; max-width: 740px; display: flex; flex-direction: column; gap: 0.75rem; }
-    #ptt-hint { font-size: 0.85rem; color: #444; user-select: none; }
-    #asr-status {
-      font-size: 0.8rem; padding: 4px 10px; border-radius: 999px;
-      border: 1px solid #333; color: #555; background: #1a1a1a;
-      user-select: none; align-self: flex-start;
-    }
-    #asr-status.rec  { color: #f44336; border-color: #f4433660; background: #1f0a0a; }
-    #asr-status.wait { color: #ffb300; border-color: #ffb30060; background: #1f1700; }
-    #asr-status.err  { color: #f44336; border-color: #f4433660; background: #1f0a0a; }
-
-    #conversation {
-      display: flex; flex-direction: column; gap: 1rem;
-      min-height: 120px; max-height: 560px; overflow-y: auto;
-      padding: 1rem; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
-    }
-    #conversation:empty::before { content: "Maintiens µ et parle…"; color: #333; font-size: 0.9rem; }
-
-    .msg { display: flex; flex-direction: column; gap: 0.35rem; max-width: 88%; }
-    .msg.user      { align-self: flex-end;   align-items: flex-end; }
-    .msg.assistant { align-self: flex-start; align-items: flex-start; }
-    .msg-label { font-size: 0.7rem; color: #444; padding: 0 4px; }
-
-    .bubble {
-      padding: 0.6rem 0.9rem; border-radius: 12px;
-      font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
-    }
-    .msg.user .bubble      { background: #1e3a2a; border: 1px solid #00e67625; color: #c8f0d8; }
-    .msg.assistant .bubble { background: #1a1a2e; border: 1px solid #5b8dee25; color: #c8d8f0; }
-
-    details.reasoning { border: 1px solid #2a2a2a; border-radius: 8px; background: #161616; max-width: 100%; }
-    details.reasoning summary {
-      cursor: pointer; font-size: 0.75rem; color: #555;
-      padding: 5px 10px; user-select: none; list-style: none;
-    }
-    details.reasoning summary::before { content: "▶ "; font-size: 0.65rem; }
-    details.reasoning[open] summary::before { content: "▼ "; }
-    .reasoning-text {
-      padding: 8px 12px; font-size: 0.8rem; line-height: 1.55; color: #444;
-      white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(238,234,221,0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(238,234,221,0.025) 1px, transparent 1px),
+        radial-gradient(circle at 10% 0%, rgba(118, 211, 111, 0.08), transparent 30%),
+        var(--bg);
+      background-size: 30px 30px, 30px 30px, auto, auto;
+      color: var(--text);
+      font-family: "Avenir Next Condensed", "DIN Condensed", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0;
     }
 
-    #clear-btn {
-      align-self: flex-end; background: none; border: none;
-      color: #333; font-size: 0.75rem; padding: 2px 6px; cursor: pointer; font-family: monospace;
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+      letter-spacing: 0;
     }
-    #clear-btn:hover { color: #666; }
+
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #242a20;
+      color: var(--text);
+      padding: 0.55rem 0.75rem;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: var(--line-strong); background: #2b3326; }
+    button:disabled { color: var(--dim); cursor: wait; background: #171b14; }
+    button.primary { background: var(--ok); color: var(--ink); border-color: var(--ok); font-weight: 800; }
+    button.blue { background: #172432; color: #dcefff; border-color: #365a78; }
+
+    textarea,
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--field);
+      color: var(--text);
+      padding: 0.75rem;
+      outline: none;
+    }
+
+    textarea:focus,
+    input:focus,
+    select:focus {
+      border-color: var(--accent);
+    }
+
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+      line-height: 1.45;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+
+    .shell {
+      width: min(1320px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 24px 0 42px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1rem;
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.35rem, 7vw, 5.6rem);
+      line-height: 0.9;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      margin-top: 0.75rem;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.5;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.86rem;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      margin-bottom: 14px;
+    }
+
+    .status-tile {
+      min-width: 0;
+      background: #151912;
+      padding: 0.9rem;
+      display: grid;
+      gap: 0.45rem;
+    }
+
+    .tile-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .tile-name {
+      font-size: 1rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .tile-meta {
+      color: var(--muted);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.74rem;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 0.18rem 0.48rem;
+      white-space: nowrap;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+    }
+
+    .pill.ok { color: #dfffdb; border-color: #3e813a; background: #162916; }
+    .pill.warn { color: #ffe5a0; border-color: #7a5e22; background: #2b2411; }
+    .pill.bad { color: #ffd7d0; border-color: #81352d; background: #2d1714; }
+
+    .tabs {
+      display: flex;
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      width: fit-content;
+      max-width: 100%;
+      margin-bottom: 14px;
+    }
+
+    .tab {
+      border: 0;
+      border-radius: 0;
+      min-width: 132px;
+      background: #151912;
+    }
+
+    .tab[aria-selected="true"] {
+      background: var(--ok);
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    .tab-panel[hidden] { display: none; }
+
+    .workbench {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface) 94%, black);
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .panel h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.35rem;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .inline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 150px;
+      gap: 0.65rem;
+      align-items: end;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .output {
+      min-height: 220px;
+      max-height: 520px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0c0f0b;
+      color: #d3cebf;
+      padding: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.55;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+    }
+
+    .side-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+
+    .detail {
+      min-width: 0;
+      background: #11150f;
+      padding: 0.65rem;
+    }
+
+    .detail span {
+      display: block;
+      color: var(--dim);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+
+    .detail strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.82rem;
+    }
+
+    .log {
+      min-height: 230px;
+      max-height: 430px;
+      overflow: auto;
+      background: #0d100c;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.75rem;
+      color: #bbb5a6;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    audio {
+      width: 100%;
+      min-height: 42px;
+    }
+
+    .file-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 130px;
+      gap: 0.65rem;
+      align-items: end;
+    }
+
+    .mic-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 160px;
+      gap: 0.65rem;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #11150f;
+      padding: 0.75rem;
+    }
+
+    .mic-status {
+      min-width: 0;
+      color: var(--muted);
+      line-height: 1.35;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+    }
+
+    .mic-status strong {
+      display: block;
+      color: var(--text);
+      font-family: "Avenir Next Condensed", "DIN Condensed", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+      font-size: 1rem;
+      text-transform: uppercase;
+    }
+
+    .voice-console {
+      display: grid;
+      gap: 0.85rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #11150f;
+      padding: 0.85rem;
+    }
+
+    .voice-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 170px;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .voice-state {
+      min-width: 0;
+      color: var(--muted);
+      line-height: 1.35;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+    }
+
+    .voice-state strong {
+      display: block;
+      color: var(--text);
+      font-family: "Avenir Next Condensed", "DIN Condensed", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+      font-size: 1rem;
+      text-transform: uppercase;
+    }
+
+    .voice-log {
+      display: grid;
+      gap: 0.65rem;
+      min-height: 180px;
+      max-height: 440px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0c0f0b;
+      padding: 0.75rem;
+    }
+
+    .voice-turn {
+      display: grid;
+      gap: 0.25rem;
+      border-left: 2px solid var(--line-strong);
+      padding-left: 0.65rem;
+    }
+
+    .voice-turn.assistant {
+      border-left-color: var(--ok);
+    }
+
+    .voice-turn span {
+      color: var(--dim);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+
+    .voice-turn p {
+      margin: 0;
+      color: #d3cebf;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.45;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.84rem;
+    }
+
+    button.recording {
+      background: var(--bad);
+      border-color: var(--bad);
+      color: #160907;
+      font-weight: 900;
+    }
+
+    .muted { color: var(--muted); }
+
+    @media (max-width: 980px) {
+      header,
+      .status-strip,
+      .workbench {
+        grid-template-columns: 1fr;
+      }
+
+      .top-actions { justify-content: flex-start; }
+    }
+
+    @media (max-width: 580px) {
+      .shell { width: min(100vw - 18px, 1320px); padding-top: 18px; }
+      .inline,
+      .file-row,
+      .mic-row,
+      .voice-head,
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+      button { width: 100%; }
+      .tabs { width: 100%; }
+      .tab { min-width: 0; flex: 1; }
+    }
   </style>
 </head>
 <body>
-  <div id="visu">
-    <div id="status">...</div>
-    <div id="label">demande accès micro...</div>
-    <div id="bar-container"><div id="bar"></div></div>
-    <div id="threshold-label">seuil de détection : 10%</div>
-  </div>
-  <div id="conv-section">
-    <span id="ptt-hint">maintiens <kbd>µ</kbd> pour parler</span>
-    <span id="asr-status">en attente</span>
-    <div id="conversation"></div>
-    <button id="clear-btn">effacer</button>
-  </div>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>Argus Inference</h1>
+        <div class="subtitle">Console locale branchee sur tes serveurs MLX deja lances dans des terminaux separes.</div>
+      </div>
+      <div class="top-actions">
+        <button id="preload-all" class="primary" type="button">Preload</button>
+        <button id="refresh" type="button">Rafraichir</button>
+      </div>
+    </header>
+
+    <section class="status-strip" id="status-strip"></section>
+
+    <nav class="tabs" aria-label="Inference">
+      <button class="tab" type="button" data-tab="llm" aria-selected="true">LLM</button>
+      <button class="tab" type="button" data-tab="asr" aria-selected="false">ASR</button>
+      <button class="tab" type="button" data-tab="voice" aria-selected="false">Voix</button>
+      <button class="tab" type="button" data-tab="tts" aria-selected="false">TTS</button>
+    </nav>
+
+    <section class="workbench">
+      <div>
+        <section class="tab-panel panel stack" id="panel-llm">
+          <h2>Chat</h2>
+          <label for="llm-prompt">Prompt</label>
+          <textarea id="llm-prompt">Reponds en une phrase claire : Argus est pret.</textarea>
+          <div class="inline">
+            <div>
+              <label for="llm-max">Max tokens</label>
+              <input id="llm-max" type="number" min="1" max="2048" value="256">
+            </div>
+            <button id="run-llm" class="primary" type="button">Envoyer</button>
+          </div>
+          <div class="output" id="llm-output">Aucune requete.</div>
+        </section>
+
+        <section class="tab-panel panel stack" id="panel-asr" hidden>
+          <h2>Transcription</h2>
+          <div class="mic-row">
+            <div class="mic-status" id="mic-status"><strong>Micro</strong>Inactif</div>
+            <button id="run-mic-asr" class="blue" type="button">Ecouter micro</button>
+          </div>
+          <div class="file-row">
+            <div>
+              <label for="asr-file">Fichier audio</label>
+              <input id="asr-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.webm">
+            </div>
+            <button id="run-asr" class="primary" type="button">Transcrire</button>
+          </div>
+          <div>
+            <label for="asr-language">Langue</label>
+            <select id="asr-language">
+              <option value="">Auto</option>
+              <option value="fr">Francais</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div>
+            <label for="asr-transcript">Transcription</label>
+            <textarea id="asr-transcript" placeholder="La transcription apparait ici des que l'ASR repond."></textarea>
+          </div>
+          <div class="output" id="asr-output">Aucun audio traite.</div>
+        </section>
+
+        <section class="tab-panel panel stack" id="panel-voice" hidden>
+          <h2>Conversation vocale</h2>
+          <div class="voice-console">
+            <div class="voice-head">
+              <div class="voice-state" id="voice-status"><strong>Voix</strong>En attente.</div>
+              <button id="run-voice" class="primary" type="button">Parler</button>
+            </div>
+            <audio id="voice-audio" controls></audio>
+          </div>
+          <div class="inline">
+            <div>
+              <label for="voice-max">Max tokens</label>
+              <input id="voice-max" type="number" min="1" max="2048" value="180">
+            </div>
+            <div>
+              <label for="voice-voice">Voix TTS</label>
+              <input id="voice-voice" value="ff_siwis">
+            </div>
+          </div>
+          <div>
+            <label for="voice-transcript">Derniere transcription</label>
+            <textarea id="voice-transcript" placeholder="Ce que tu dis apparait ici avant l'envoi au LLM."></textarea>
+          </div>
+          <div>
+            <label for="voice-answer">Derniere reponse</label>
+            <textarea id="voice-answer" placeholder="La reponse du LLM apparait ici avant la synthese vocale."></textarea>
+          </div>
+          <div class="voice-log" id="voice-log"></div>
+        </section>
+
+        <section class="tab-panel panel stack" id="panel-tts" hidden>
+          <h2>Synthese</h2>
+          <label for="tts-text">Texte</label>
+          <textarea id="tts-text">Bonjour, ceci est un test Kokoro depuis Argus.</textarea>
+          <div class="inline">
+            <div>
+              <label for="tts-voice">Voix</label>
+              <input id="tts-voice" value="ff_siwis">
+            </div>
+            <button id="run-tts" class="primary" type="button">Generer</button>
+          </div>
+          <audio id="tts-audio" controls></audio>
+          <div class="output" id="tts-output">Aucun audio genere.</div>
+        </section>
+      </div>
+
+      <aside class="side-grid">
+        <section class="panel stack">
+          <h2>Services</h2>
+          <div class="detail-grid" id="service-details"></div>
+        </section>
+        <section class="panel stack">
+          <h2>Journal</h2>
+          <select id="log-service" aria-label="Service journal">
+            <option value="parakeet">Parakeet ASR</option>
+            <option value="llm">LLM</option>
+            <option value="tts">Kokoro TTS</option>
+          </select>
+          <div class="log" id="log-output">Aucun log.</div>
+        </section>
+      </aside>
+    </section>
+  </main>
 
   <script>
-    const THRESHOLD = 10, TARGET_SR = 16000;
-    const statusEl  = document.getElementById('status');
-    const labelEl   = document.getElementById('label');
-    const barEl     = document.getElementById('bar');
-    const asrStatus = document.getElementById('asr-status');
-    const convEl    = document.getElementById('conversation');
-    const clearBtn  = document.getElementById('clear-btn');
+    const statusStrip = document.getElementById('status-strip');
+    const serviceDetails = document.getElementById('service-details');
+    const logOutput = document.getElementById('log-output');
+    const logService = document.getElementById('log-service');
+    const busy = new Set();
+    let serviceState = [];
+    let config = null;
 
-    let audioCtx = null, recorder = null;
-    let recBuf = new Float32Array(0), recording = false;
-
-    function setStatus(text, cls) { asrStatus.textContent = text; asrStatus.className = cls || ''; }
-
-    function resample(input, srcSr, dstSr) {
-      if (srcSr === dstSr) return input;
-      const ratio = dstSr / srcSr;
-      const out = new Float32Array(Math.max(0, Math.round(input.length * ratio)));
-      for (let i = 0; i < out.length; i++) {
-        const x = i / ratio, x0 = Math.floor(x), x1 = Math.min(x0 + 1, input.length - 1);
-        out[i] = input[x0] * (1 - (x - x0)) + input[x1] * (x - x0);
-      }
-      return out;
+    async function jsonFetch(url, options = {}) {
+      const resp = await fetch(url, options);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || resp.statusText);
+      return data;
     }
 
-    // ── Audio queue ────────────────────────────────────────────────────────────
-    const audioQueue = [];
-    let audioPlaying = false;
-
-    function playNext() {
-      if (audioQueue.length === 0) { audioPlaying = false; return; }
-      audioPlaying = true;
-      const buf = audioQueue.shift();
-      const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      src.connect(audioCtx.destination);
-      src.onended = playNext;
-      src.start();
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      }[char]));
     }
 
-    async function enqueueAudio(b64) {
-      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const audioBuf = await audioCtx.decodeAudioData(bytes.buffer);
-      audioQueue.push(audioBuf);
-      if (!audioPlaying) playNext();
+    function shortPath(value) {
+      return String(value ?? '').replace('/Volumes/T7/models/', 'T7/models/');
     }
 
-    // ── UI helpers ─────────────────────────────────────────────────────────────
-    function addUserMessage(text) {
-      const msg = document.createElement('div'); msg.className = 'msg user';
-      const lbl = document.createElement('div'); lbl.className = 'msg-label'; lbl.textContent = 'vous';
-      const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = text;
-      msg.append(lbl, bubble);
-      convEl.appendChild(msg); convEl.scrollTop = convEl.scrollHeight;
+    function pill(service) {
+      if (service.loaded) return '<span class="pill ok">Loaded</span>';
+      if (service.type === 'llm' && service.healthy) return '<span class="pill ok">Ready</span>';
+      if (service.healthy) return '<span class="pill warn">Online</span>';
+      return '<span class="pill bad">Offline</span>';
     }
 
-    function createAssistantMessage() {
-      const msg = document.createElement('div'); msg.className = 'msg assistant';
-      const lbl = document.createElement('div'); lbl.className = 'msg-label'; lbl.textContent = 'argus';
-
-      const details = document.createElement('details'); details.className = 'reasoning';
-      const summary = document.createElement('summary'); summary.textContent = 'raisonnement';
-      const reasoningText = document.createElement('div'); reasoningText.className = 'reasoning-text';
-      details.append(summary, reasoningText);
-      details.hidden = true;
-
-      const bubble = document.createElement('div'); bubble.className = 'bubble';
-      msg.append(lbl, details, bubble);
-      convEl.appendChild(msg); convEl.scrollTop = convEl.scrollHeight;
-      return { details, reasoningText, bubble };
+    function formatMs(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return '-';
+      return `${Math.round(number)} ms`;
     }
 
-    // ── Micro ──────────────────────────────────────────────────────────────────
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      .then(stream => {
-        audioCtx = new AudioContext();
-        const source = audioCtx.createMediaStreamSource(stream);
-        const analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
-        source.connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        function tick() {
-          analyser.getByteFrequencyData(data);
-          const pct = Math.min(100, (data.reduce((a,b)=>a+b,0)/data.length/255)*300);
-          const sound = pct >= THRESHOLD;
-          barEl.style.width = pct + '%';
-          statusEl.textContent = sound ? 'OUI' : 'NON';
-          statusEl.style.color = sound ? '#00e676' : '#555';
-          barEl.style.background = sound ? '#00e676' : '#444';
-          document.body.style.background = sound ? '#0a1f0f' : '#111';
-          labelEl.textContent = sound ? 'son détecté' : 'silence';
-          requestAnimationFrame(tick);
+    function serviceById(id) {
+      return serviceState.find(service => service.id === id);
+    }
+
+    function preferredAudioMimeType() {
+      if (!window.MediaRecorder) return '';
+      const types = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+      ];
+      return types.find(type => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    function extensionForMimeType(type) {
+      if (String(type).includes('mp4')) return 'm4a';
+      if (String(type).includes('webm')) return 'webm';
+      return 'wav';
+    }
+
+    function audioBufferToWav(buffer) {
+      const sampleRate = buffer.sampleRate;
+      const samples = buffer.getChannelData(0);
+      const dataSize = samples.length * 2;
+      const arrayBuffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(arrayBuffer);
+
+      function writeString(offset, value) {
+        for (let index = 0; index < value.length; index += 1) {
+          view.setUint8(offset + index, value.charCodeAt(index));
         }
-        tick();
-        recorder = audioCtx.createScriptProcessor(4096, 1, 1);
-        source.connect(recorder); recorder.connect(audioCtx.destination);
-        recorder.onaudioprocess = (e) => {
-          if (!recording) return;
-          const resampled = resample(e.inputBuffer.getChannelData(0), audioCtx.sampleRate, TARGET_SR);
-          const merged = new Float32Array(recBuf.length + resampled.length);
-          merged.set(recBuf); merged.set(resampled, recBuf.length);
-          recBuf = merged;
-        };
-        setStatus('en attente');
-      })
-      .catch(err => {
-        statusEl.textContent = '!'; statusEl.style.color = '#f44';
-        labelEl.textContent = 'accès micro refusé : ' + err.message;
-        setStatus('micro indisponible', 'err');
-      });
+      }
 
-    // ── Push-to-talk ───────────────────────────────────────────────────────────
-    document.addEventListener('keydown', (e) => {
-      if (e.key !== 'µ' || recording || e.repeat || !recorder) return;
-      e.preventDefault(); recBuf = new Float32Array(0);
-      recording = true; setStatus('● enregistrement…', 'rec');
-    });
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, dataSize, true);
 
-    document.addEventListener('keyup', async (e) => {
-      if (e.key !== 'µ' || !recording) return;
-      e.preventDefault(); recording = false;
-      const samples = recBuf; recBuf = new Float32Array(0);
-      if (samples.length < TARGET_SR * 0.2) { setStatus('en attente'); return; }
+      let offset = 44;
+      for (const sample of samples) {
+        const clamped = Math.max(-1, Math.min(1, sample));
+        view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+        offset += 2;
+      }
 
+      return arrayBuffer;
+    }
+
+    async function convertMicBlobToWav(blob) {
+      const context = new AudioContext();
       try {
-        // 1. Transcription
-        setStatus('transcription…', 'wait');
-        const asrResp = await fetch('/api/transcribe', {
-          method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: samples.buffer,
-        });
-        const { text, error: asrErr } = await asrResp.json();
-        if (asrErr) throw new Error(asrErr);
-        if (!text?.trim()) { setStatus('en attente'); return; }
+        const decoded = await context.decodeAudioData(await blob.arrayBuffer());
+        const sampleRate = 16000;
+        const length = Math.ceil(decoded.duration * sampleRate);
+        const offline = new OfflineAudioContext(1, length, sampleRate);
+        const source = offline.createBufferSource();
+        source.buffer = decoded;
+        source.connect(offline.destination);
+        source.start();
+        const rendered = await offline.startRendering();
+        return new Blob([audioBufferToWav(rendered)], { type: 'audio/wav' });
+      } finally {
+        await context.close().catch(() => {});
+      }
+    }
 
-        addUserMessage(text.trim());
+    async function transcribeAudioBlob(blob, filename) {
+      const resp = await fetch('/api/transcribe-file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-File-Name': filename,
+          'X-Language': document.getElementById('asr-language').value,
+        },
+        body: await blob.arrayBuffer(),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || resp.statusText);
+      return data;
+    }
 
-        // 2. LLM streaming + TTS
-        setStatus('réponse…', 'wait');
-        const { details, reasoningText, bubble } = createAssistantMessage();
+    function writeAsrResult(data, source) {
+      const text = data.text || '';
+      document.getElementById('asr-transcript').value = text || '(vide)';
+      document.getElementById('asr-output').textContent = `${source}\n${text || '(vide)'}\n\n${formatMs(data.elapsedMs)}`;
+    }
 
-        const llmResp = await fetch('/api/chat', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text.trim() }),
-        });
-        if (!llmResp.ok) throw new Error(await llmResp.text());
+    async function runLlmText(prompt, maxTokens) {
+      return jsonFetch('/api/llm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, maxTokens }),
+      });
+    }
 
-        const reader = llmResp.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '', eventType = 'message';
+    async function synthesizeText(text, voice) {
+      return jsonFetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice }),
+      });
+    }
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
+    function wavBase64ToBlob(wav) {
+      const bytes = Uint8Array.from(atob(wav), char => char.charCodeAt(0));
+      return new Blob([bytes], { type: 'audio/wav' });
+    }
 
-          const lines = buf.split('\n');
-          buf = lines.pop();
+    function setAudioBlob(audio, blob) {
+      if (audio.src) URL.revokeObjectURL(audio.src);
+      audio.src = URL.createObjectURL(blob);
+    }
 
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7).trim();
-            } else if (line.startsWith('data: ')) {
-              const raw = line.slice(6).trim();
-              if (!raw || raw === '[DONE]') { eventType = 'message'; continue; }
-              let d;
-              try { d = JSON.parse(raw); } catch { eventType = 'message'; continue; }
+    function appendVoiceTurn(role, text) {
+      const log = document.getElementById('voice-log');
+      const turn = document.createElement('div');
+      turn.className = `voice-turn ${role}`;
+      const label = document.createElement('span');
+      label.textContent = role === 'assistant' ? 'Argus' : 'Vous';
+      const body = document.createElement('p');
+      body.textContent = text || '(vide)';
+      turn.append(label, body);
+      log.appendChild(turn);
+      log.scrollTop = log.scrollHeight;
+    }
 
-              if (eventType === 'reasoning' && d.text) {
-                details.hidden = false; details.open = true;
-                reasoningText.textContent += d.text;
-                reasoningText.scrollTop = reasoningText.scrollHeight;
-              } else if (eventType === 'token' && d.text) {
-                bubble.textContent += d.text;
-              } else if (eventType === 'audio' && d.wav) {
-                enqueueAudio(d.wav).catch(console.error);
-              }
-              convEl.scrollTop = convEl.scrollHeight;
-              if (line === '') eventType = 'message';
-            } else if (line === '') {
-              eventType = 'message';
-            }
-          }
-        }
+    function renderStatus() {
+      statusStrip.innerHTML = serviceState.map(service => `
+        <article class="status-tile">
+          <div class="tile-head">
+            <div class="tile-name">${escapeHtml(service.label)}</div>
+            ${pill(service)}
+          </div>
+          <div class="tile-meta">${escapeHtml(service.url)}</div>
+          <div class="tile-meta">${escapeHtml(shortPath(service.model))}</div>
+          <button data-preload="${service.id}" class="blue" type="button" ${busy.has(service.id) || !service.healthy || service.type === 'llm' ? 'disabled' : ''}>${service.type === 'llm' ? 'Charge au demarrage' : 'Charger modele'}</button>
+        </article>
+      `).join('');
 
-        setStatus('en attente');
+      serviceDetails.innerHTML = serviceState.map(service => {
+        const stats = service.stats || {};
+        const status = service.type === 'llm' && service.healthy
+          ? 'Pret'
+          : service.loaded ? 'Modele charge' : service.healthy ? 'Serveur joignable' : 'Serveur absent';
+        return `
+          <div class="detail"><span>${escapeHtml(service.label)}</span><strong>${escapeHtml(status)}</strong></div>
+          <div class="detail"><span>Dernier appel</span><strong>${escapeHtml(formatMs(stats.lastCallMs))}</strong></div>
+        `;
+      }).join('');
+
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const service = serviceById(logService.value);
+      const logs = service?.logs || [];
+      logOutput.textContent = logs.length
+        ? logs.map(log => `${String(log.ts).slice(11, 19)} ${log.source}: ${log.text}`).join('\n')
+        : 'Aucun log.';
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    async function refresh() {
+      const [nextConfig, state] = await Promise.all([
+        jsonFetch('/api/config'),
+        jsonFetch('/api/services'),
+      ]);
+      config = nextConfig;
+      serviceState = state.services;
+      const voice = document.getElementById('tts-voice');
+      if (voice && !voice.dataset.touched) voice.value = config.voice || voice.value;
+      const voiceConversation = document.getElementById('voice-voice');
+      if (voiceConversation && !voiceConversation.dataset.touched) {
+        voiceConversation.value = config.voice || voiceConversation.value;
+      }
+      renderStatus();
+    }
+
+    async function preload(id) {
+      busy.add(id);
+      renderStatus();
+      try {
+        await jsonFetch(`/api/services/${id}/preload`, { method: 'POST' });
+      } finally {
+        busy.delete(id);
+        await refresh();
+      }
+    }
+
+    statusStrip.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-preload]');
+      if (!button) return;
+      try {
+        await preload(button.dataset.preload);
       } catch (err) {
-        setStatus('erreur : ' + err.message, 'err');
+        alert(err.message);
       }
     });
 
-    clearBtn.onclick = () => { convEl.innerHTML = ''; audioQueue.length = 0; };
+    document.getElementById('preload-all').addEventListener('click', async () => {
+      for (const service of serviceState) {
+        if (service.healthy) {
+          try { await preload(service.id); } catch {}
+        }
+      }
+    });
+
+    document.getElementById('refresh').addEventListener('click', () => refresh().catch(console.error));
+    logService.addEventListener('change', renderLogs);
+    document.getElementById('tts-voice').addEventListener('input', event => {
+      event.currentTarget.dataset.touched = 'true';
+    });
+    document.getElementById('voice-voice').addEventListener('input', event => {
+      event.currentTarget.dataset.touched = 'true';
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(item => {
+          item.setAttribute('aria-selected', String(item === tab));
+        });
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+          panel.hidden = panel.id !== `panel-${tab.dataset.tab}`;
+        });
+      });
+    });
+
+    document.getElementById('run-llm').addEventListener('click', async () => {
+      const output = document.getElementById('llm-output');
+      const button = document.getElementById('run-llm');
+      button.disabled = true;
+      output.textContent = 'Inference en cours...';
+      try {
+        const data = await runLlmText(
+          document.getElementById('llm-prompt').value,
+          document.getElementById('llm-max').value,
+        );
+        output.textContent = `${data.text}\n\n${formatMs(data.elapsedMs)}`;
+      } catch (err) {
+        output.textContent = `Erreur\n${err.message}`;
+      } finally {
+        button.disabled = false;
+        await refresh();
+      }
+    });
+
+    document.getElementById('run-asr').addEventListener('click', async () => {
+      const output = document.getElementById('asr-output');
+      const input = document.getElementById('asr-file');
+      const file = input.files?.[0];
+      if (!file) {
+        output.textContent = 'Choisis un fichier audio.';
+        return;
+      }
+      const button = document.getElementById('run-asr');
+      button.disabled = true;
+      output.textContent = 'Transcription en cours...';
+      try {
+        const data = await transcribeAudioBlob(file, file.name);
+        writeAsrResult(data, `Fichier: ${file.name}`);
+      } catch (err) {
+        output.textContent = `Erreur\n${err.message}`;
+      } finally {
+        button.disabled = false;
+        await refresh();
+      }
+    });
+
+    let micStream = null;
+    let micRecorder = null;
+    let micChunks = [];
+
+    function stopMicTracks() {
+      if (!micStream) return;
+      micStream.getTracks().forEach(track => track.stop());
+      micStream = null;
+    }
+
+    function setMicIdle(message = 'Inactif') {
+      const button = document.getElementById('run-mic-asr');
+      button.textContent = 'Ecouter micro';
+      button.classList.remove('recording');
+      button.disabled = false;
+      document.getElementById('mic-status').innerHTML = `<strong>Micro</strong>${escapeHtml(message)}`;
+    }
+
+    async function startMicAsr() {
+      const button = document.getElementById('run-mic-asr');
+      const status = document.getElementById('mic-status');
+      const output = document.getElementById('asr-output');
+
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        output.textContent = "Erreur\nCe navigateur ne supporte pas l'enregistrement micro.";
+        return;
+      }
+
+      button.disabled = true;
+      status.innerHTML = '<strong>Micro</strong>Demande de permission...';
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = preferredAudioMimeType();
+        micRecorder = new MediaRecorder(micStream, mimeType ? { mimeType } : undefined);
+        micChunks = [];
+        micRecorder.addEventListener('dataavailable', event => {
+          if (event.data?.size) micChunks.push(event.data);
+        });
+        micRecorder.addEventListener('stop', () => {
+          const type = micRecorder.mimeType || mimeType || 'audio/webm';
+          const recordedBlob = new Blob(micChunks, { type });
+          const filename = `micro-${new Date().toISOString().replace(/[:.]/g, '-')}.wav`;
+          micRecorder = null;
+          stopMicTracks();
+          if (!recordedBlob.size) {
+            setMicIdle('Aucun son capture.');
+            return;
+          }
+          button.disabled = true;
+          status.innerHTML = '<strong>Micro</strong>Transcription en cours...';
+          output.textContent = 'Transcription micro en cours...';
+          convertMicBlobToWav(recordedBlob)
+            .catch(() => recordedBlob)
+            .then(blob => transcribeAudioBlob(blob, blob.type === 'audio/wav' ? filename : `micro.${extensionForMimeType(type)}`))
+            .then(data => writeAsrResult(data, 'Micro'))
+            .catch(err => {
+              output.textContent = `Erreur\n${err.message}`;
+            })
+            .finally(async () => {
+              setMicIdle('Dernier enregistrement transcrit.');
+              await refresh();
+            });
+        });
+        micRecorder.start();
+        button.textContent = 'Arreter';
+        button.classList.add('recording');
+        button.disabled = false;
+        status.innerHTML = '<strong>Micro</strong>Ecoute en cours... clique pour transcrire.';
+        output.textContent = "Micro ouvert. Clique sur Arreter pour envoyer a l'ASR.";
+      } catch (err) {
+        stopMicTracks();
+        setMicIdle('Permission refusee ou micro indisponible.');
+        output.textContent = `Erreur\n${err.message}`;
+      }
+    }
+
+    document.getElementById('run-mic-asr').addEventListener('click', async () => {
+      if (micRecorder?.state === 'recording') {
+        document.getElementById('run-mic-asr').disabled = true;
+        document.getElementById('mic-status').innerHTML = "<strong>Micro</strong>Preparation de l'audio...";
+        micRecorder.stop();
+        return;
+      }
+      await startMicAsr();
+    });
+
+    let voiceStream = null;
+    let voiceRecorder = null;
+    let voiceChunks = [];
+
+    function stopVoiceTracks() {
+      if (!voiceStream) return;
+      voiceStream.getTracks().forEach(track => track.stop());
+      voiceStream = null;
+    }
+
+    function setVoiceStatus(message) {
+      document.getElementById('voice-status').innerHTML = `<strong>Voix</strong>${escapeHtml(message)}`;
+    }
+
+    function setVoiceIdle(message = 'En attente.') {
+      const button = document.getElementById('run-voice');
+      button.textContent = 'Parler';
+      button.classList.remove('recording');
+      button.disabled = false;
+      setVoiceStatus(message);
+    }
+
+    async function runVoicePipeline(recordedBlob, type) {
+      const transcript = document.getElementById('voice-transcript');
+      const answer = document.getElementById('voice-answer');
+      const audio = document.getElementById('voice-audio');
+      const button = document.getElementById('run-voice');
+      const filename = `conversation-${new Date().toISOString().replace(/[:.]/g, '-')}.wav`;
+
+      button.disabled = true;
+      try {
+        setVoiceStatus('Conversion audio...');
+        const wav = await convertMicBlobToWav(recordedBlob).catch(() => recordedBlob);
+
+        setVoiceStatus('Transcription ASR...');
+        const asr = await transcribeAudioBlob(wav, wav.type === 'audio/wav' ? filename : `conversation.${extensionForMimeType(type)}`);
+        const userText = (asr.text || '').trim();
+        transcript.value = userText || '(vide)';
+        appendVoiceTurn('user', userText || '(vide)');
+        if (!userText) {
+          setVoiceIdle('Transcription vide.');
+          return;
+        }
+
+        setVoiceStatus('Reponse LLM...');
+        const llm = await runLlmText(userText, document.getElementById('voice-max').value);
+        const assistantText = (llm.text || '').trim();
+        answer.value = assistantText || '(vide)';
+        appendVoiceTurn('assistant', assistantText || '(vide)');
+        if (!assistantText) {
+          setVoiceIdle('Reponse vide.');
+          return;
+        }
+
+        setVoiceStatus('Synthese TTS...');
+        const tts = await synthesizeText(assistantText, document.getElementById('voice-voice').value);
+        setAudioBlob(audio, wavBase64ToBlob(tts.wav));
+        setVoiceStatus('Lecture audio...');
+        await audio.play().catch(() => {});
+        setVoiceIdle(`Termine. ASR ${formatMs(asr.elapsedMs)} / LLM ${formatMs(llm.elapsedMs)} / TTS ${formatMs(tts.elapsedMs)}`);
+      } catch (err) {
+        setVoiceIdle('Erreur.');
+        document.getElementById('voice-answer').value = `Erreur\n${err.message}`;
+      } finally {
+        await refresh();
+      }
+    }
+
+    async function startVoiceConversation() {
+      const button = document.getElementById('run-voice');
+      const output = document.getElementById('voice-answer');
+
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        output.value = "Erreur\nCe navigateur ne supporte pas l'enregistrement micro.";
+        return;
+      }
+
+      button.disabled = true;
+      setVoiceStatus('Demande de permission micro...');
+      try {
+        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = preferredAudioMimeType();
+        voiceRecorder = new MediaRecorder(voiceStream, mimeType ? { mimeType } : undefined);
+        voiceChunks = [];
+        voiceRecorder.addEventListener('dataavailable', event => {
+          if (event.data?.size) voiceChunks.push(event.data);
+        });
+        voiceRecorder.addEventListener('stop', () => {
+          const type = voiceRecorder.mimeType || mimeType || 'audio/webm';
+          const recordedBlob = new Blob(voiceChunks, { type });
+          voiceRecorder = null;
+          stopVoiceTracks();
+          if (!recordedBlob.size) {
+            setVoiceIdle('Aucun son capture.');
+            return;
+          }
+          runVoicePipeline(recordedBlob, type);
+        });
+        voiceRecorder.start();
+        button.textContent = 'Arreter';
+        button.classList.add('recording');
+        button.disabled = false;
+        setVoiceStatus('Ecoute en cours... clique pour envoyer.');
+      } catch (err) {
+        stopVoiceTracks();
+        setVoiceIdle('Permission refusee ou micro indisponible.');
+        output.value = `Erreur\n${err.message}`;
+      }
+    }
+
+    document.getElementById('run-voice').addEventListener('click', async () => {
+      if (voiceRecorder?.state === 'recording') {
+        document.getElementById('run-voice').disabled = true;
+        setVoiceStatus("Preparation de l'audio...");
+        voiceRecorder.stop();
+        return;
+      }
+      await startVoiceConversation();
+    });
+
+    document.getElementById('run-tts').addEventListener('click', async () => {
+      const output = document.getElementById('tts-output');
+      const audio = document.getElementById('tts-audio');
+      const button = document.getElementById('run-tts');
+      button.disabled = true;
+      output.textContent = 'Generation en cours...';
+      try {
+        const data = await synthesizeText(
+          document.getElementById('tts-text').value,
+          document.getElementById('tts-voice').value,
+        );
+        setAudioBlob(audio, wavBase64ToBlob(data.wav));
+        output.textContent = `${data.bytes} octets\n${formatMs(data.elapsedMs)}`;
+      } catch (err) {
+        output.textContent = `Erreur\n${err.message}`;
+      } finally {
+        button.disabled = false;
+        await refresh();
+      }
+    });
+
+    refresh().catch(err => {
+      statusStrip.innerHTML = `<article class="status-tile"><div class="tile-name">Erreur</div><div class="tile-meta">${escapeHtml(err.message)}</div></article>`;
+    });
+
+    setInterval(() => refresh().catch(console.error), 7000);
   </script>
 </body>
 </html>

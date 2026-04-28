@@ -1,67 +1,101 @@
 # Argus
 
-Real-time speech transcription in the browser, backed by a local vLLM ASR server.
+Console web locale d'inference pour des serveurs MLX lances a la main.
 
-Hold `µ` to record, release to transcribe.
+Argus ne demarre pas les modeles depuis la page web et ne tue aucun processus.
+Le script unique `start.sh` sert a lancer, dans des terminaux separes, les
+serveurs MLX et l'interface web.
 
-## Stack
+## Modeles
 
-- **Frontend** — plain HTML/JS, push-to-talk via Web Audio API
-- **Backend** — Node.js + Express, proxies audio to vLLM
-- **Model** — [Qwen3-ASR-0.6B](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) served by vLLM
-
-## Project structure
-
-```
-Argus/
-├── public/
-│   └── index.html      # UI
-├── src/
-│   └── server.js       # Express server
-├── scripts/
-│   └── start.sh        # Launch vLLM if needed, then npm run dev
-├── package.json
-└── README.md
-```
-
-## Prerequisites
-
-- Node.js 20+
-- Python 3.12+ with [uv](https://docs.astral.sh/uv/)
-- A GPU with ~2 GB VRAM
-
-## Setup
+Par defaut :
 
 ```bash
-git clone https://github.com/AlexandreEDMOND/Argus.git
-cd Argus
-bash scripts/setup.sh
+/Volumes/T7/models/parakeet-tdt-0.6b-v2
+/Volumes/T7/models/Qwen3.5-0.8B
+/Volumes/T7/models/Kokoro-82M-MLX
 ```
 
-Download the model (first run only):
+## Commandes
+
+Depuis n'importe quel dossier, utilise le chemin absolu :
 
 ```bash
-.venv/bin/huggingface-cli download Qwen/Qwen3-ASR-0.6B --local-dir ~/models/Qwen3-ASR-0.6B
+/Users/alexandre/CodePuant/Argus/start.sh commands
 ```
 
-## Usage
+Terminal 1 - Parakeet ASR :
 
 ```bash
-bash scripts/start.sh
+/Users/alexandre/CodePuant/Argus/start.sh parakeet
 ```
 
-This will:
-1. Start vLLM on `:8236` if not already running
-2. Start the web server on `:8000` via `npm run dev`
-
-The vLLM command used:
+Terminal 2 - LLM :
 
 ```bash
-vllm serve ~/models/Qwen3-ASR-0.6B/ --port 8236 --gpu-memory-utilization 0.3 --max-model-len 16384
+/Users/alexandre/CodePuant/Argus/start.sh llm
 ```
 
-Then open **http://localhost:8000** and hold `µ` to transcribe.
+Cette commande lance le serveur LLM minimal d'Argus, pas `mlx_lm.server`.
+Le serveur officiel `mlx_lm.server` est evite ici car cette version plante dans
+ses threads HTTP avec `There is no Stream(gpu, 0) in current thread`.
 
-## TODO
+Terminal 3 - Kokoro TTS :
 
-- [ ] Benchmarker les modèles ASR disponibles sur Hugging Face pour trouver le plus rapide et fiable en français — candidats à tester : Mistral, Qwen (autres tailles), NVIDIA Canary, GLM, Whisper large-v3, et autres modèles récents supportés par vLLM
+```bash
+/Users/alexandre/CodePuant/Argus/start.sh tts
+```
+
+Terminal 4 - Argus web :
+
+```bash
+/Users/alexandre/CodePuant/Argus/start.sh web
+```
+
+Puis ouvre :
+
+```bash
+http://localhost:8000
+```
+
+Preload audio, si tu veux le faire en terminal au lieu de cliquer dans l'UI :
+
+```bash
+/Users/alexandre/CodePuant/Argus/start.sh preload
+```
+
+Le LLM n'a pas de preload separe : `start.sh llm` charge le modele au
+demarrage. Dans l'UI, le bouton de chargement est donc desactive pour le LLM.
+
+## Ports
+
+- Argus web : `8000`
+- Parakeet ASR : `8802`
+- LLM : `8803`
+- Kokoro TTS : `8804`
+
+## Variables utiles
+
+```bash
+MODEL_ROOT=/Volumes/T7/models
+PARAKEET_ASR_MODEL=/Volumes/T7/models/parakeet-tdt-0.6b-v2
+LLM_MODEL=/Volumes/T7/models/Qwen3.5-0.8B
+TTS_MODEL=/Volumes/T7/models/Kokoro-82M-MLX
+TTS_VOICE=ff_siwis
+PARAKEET_ASR_PORT=8802
+LLM_PORT=8803
+TTS_PORT=8804
+PORT=8000
+```
+
+Exemple :
+
+```bash
+LLM_MODEL=/Volumes/T7/models/Qwen3.5-0.8B /Users/alexandre/CodePuant/Argus/start.sh llm
+```
+
+## Notes
+
+`start.sh` utilise d'abord le binaire audio de `.venv/bin` s'il existe. Pour le
+LLM, il lance `uvicorn src.llm_server:app` dans l'environnement uv du projet.
+Cela permet de lancer les commandes meme depuis un autre dossier.

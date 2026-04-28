@@ -1,10 +1,11 @@
 {
   "name": "argus",
   "version": "0.1.0",
-  "description": "Real-time speech transcription backed by vLLM ASR",
+  "description": "Local MLX inference console",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js"
+    "dev": "node src/server.js",
+    "watch": "node --watch src/server.js"
   },
   "dependencies": {
     "express": "^4.19.0",
